@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Playlist Downloader</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d0d0d;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: #1a1a1a;
+            border-radius: 16px;
+            padding: 40px;
+            max-width: 700px;
+            width: 100%;
+            box-shadow: 0 4px 32px rgba(0,0,0,0.5);
+            border: 1px solid #2a2a2a;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 32px;
+        }
+
+        .logo {
+            width: 44px;
+            height: 44px;
+            background: #FF0000;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .logo svg { width: 22px; height: 22px; fill: white; }
+
+        h1 { font-size: 22px; font-weight: 700; color: #f1f1f1; }
+        h1 span { color: #FF0000; }
+        .subtitle { color: #888; font-size: 13px; margin-top: 3px; }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 13px 16px;
+            border: 2px solid #2e2e2e;
+            border-radius: 10px;
+            font-size: 14px;
+            color: #f1f1f1;
+            background: #111;
+            outline: none;
+            transition: border-color 0.2s;
+            min-width: 0;
+        }
+
+        input[type="text"]:focus { border-color: #FF0000; }
+        input[type="text"]::placeholder { color: #444; }
+
+        #downloadBtn {
+            padding: 13px 22px;
+            background: #FF0000;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            white-space: nowrap;
+        }
+
+        #downloadBtn:hover { background: #cc0000; }
+        #downloadBtn:active { transform: scale(0.98); }
+        #downloadBtn:disabled { background: #333; color: #666; cursor: not-allowed; transform: none; }
+
+        .progress-section { display: none; }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .status-badge.installing  { background: #0d2040; color: #6ea8fe; }
+        .status-badge.downloading { background: #2a1f00; color: #ffc107; }
+        .status-badge.done        { background: #0a2318; color: #4ade80; }
+        .status-badge.error       { background: #2a0a0a; color: #f87171; }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .dot.pulse { animation: pulse 1.4s infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.25; }
+        }
+
+        .log {
+            background: #0d0d0d;
+            border: 1px solid #2a2a2a;
+            border-radius: 10px;
+            padding: 14px 16px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
+            font-size: 12px;
+            line-height: 1.65;
+        }
+
+        .log-line { padding: 1px 0; word-break: break-all; }
+        .log-line.download { color: #4ade80; }
+        .log-line.extract  { color: #60a5fa; }
+        .log-line.ffmpeg   { color: #c084fc; }
+        .log-line.error    { color: #f87171; }
+        .log-line.info     { color: #555; }
+        .log-line.default  { color: #aaa; }
+
+        .done-section {
+            margin-top: 14px;
+            border: 1px solid #2a2a2a;
+            border-radius: 10px;
+            overflow: hidden;
+            display: none;
+        }
+
+        .done-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: #0a2318;
+            gap: 12px;
+        }
+
+        .done-title {
+            color: #4ade80;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .zip-btn {
+            padding: 7px 14px;
+            background: #FF0000;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+
+        .zip-btn:hover { background: #cc0000; }
+
+        .file-list {
+            max-height: 240px;
+            overflow-y: auto;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 9px 16px;
+            border-bottom: 1px solid #1e1e1e;
+        }
+
+        .file-item:last-child { border-bottom: none; }
+
+        .file-name {
+            flex: 1;
+            font-size: 13px;
+            color: #bbb;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+        }
+
+        .dl-link {
+            flex-shrink: 0;
+            color: #555;
+            text-decoration: none;
+            font-size: 15px;
+            padding: 4px 8px;
+            border-radius: 5px;
+            transition: color 0.15s, background 0.15s;
+        }
+
+        .dl-link:hover { color: #f1f1f1; background: #2a2a2a; }
+
+        .info-box {
+            background: #111;
+            border: 1px solid #2a2a2a;
+            border-radius: 10px;
+            padding: 13px 16px;
+            font-size: 13px;
+            color: #666;
+            margin-top: 24px;
+            line-height: 1.7;
+        }
+
+        .info-box a { color: #888; }
+        .info-box a:hover { color: #aaa; }
+        .info-box strong { color: #aaa; }
+
+        .info-box code {
+            background: #1e1e1e;
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-family: 'SF Mono', 'Menlo', monospace;
+            font-size: 12px;
+            color: #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">
+                <svg viewBox="0 0 24 24">
+                    <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
+                </svg>
+            </div>
+            <div>
+                <h1>YouTube <span>Playlist</span> Downloader</h1>
+                <div class="subtitle">Downloads your playlist as MP3 into ~/Downloads/YouTube Playlists</div>
+            </div>
+        </div>
+
+        <div class="input-group">
+            <input
+                type="text"
+                id="urlInput"
+                placeholder="Paste YouTube playlist URL here..."
+                autocomplete="off"
+                spellcheck="false"
+            />
+            <button id="downloadBtn" onclick="startDownload()">Download</button>
+        </div>
+
+        <div class="progress-section" id="progressSection">
+            <div class="status-bar">
+                <div class="status-badge downloading" id="statusBadge">
+                    <div class="dot pulse" id="dot"></div>
+                    <span id="statusText">Downloading...</span>
+                </div>
+            </div>
+
+            <div class="log" id="log"></div>
+
+            <div class="done-section" id="doneSection">
+                <div class="done-header">
+                    <span class="done-title" id="doneTitle"></span>
+                    <button class="zip-btn" id="zipBtn" style="display:none">&#8659; Download All as ZIP</button>
+                </div>
+                <div class="file-list" id="fileList"></div>
+            </div>
+        </div>
+
+        <div class="info-box">
+            Required tools (<code>yt-dlp</code>, <code>ffmpeg</code>) will be <strong>installed automatically</strong> on first use.<br>
+            <strong>Mac:</strong> requires <a href="https://brew.sh" target="_blank">Homebrew</a> &nbsp;|&nbsp;
+            <strong>Windows:</strong> requires <a href="https://aka.ms/getwinget" target="_blank">winget</a> (built into Windows 10/11)
+        </div>
+    </div>
+
+    <script>
+        let eventSource = null;
+
+        function startDownload() {
+            const url = document.getElementById('urlInput').value.trim();
+            if (!url) {
+                document.getElementById('urlInput').focus();
+                return;
+            }
+
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            // Reset UI
+            document.getElementById('downloadBtn').disabled = true;
+            document.getElementById('downloadBtn').textContent = 'Downloading...';
+            document.getElementById('progressSection').style.display = 'block';
+            document.getElementById('log').innerHTML = '';
+            document.getElementById('doneSection').style.display = 'none';
+            document.getElementById('fileList').innerHTML = '';
+            document.getElementById('zipBtn').style.display = 'none';
+            setStatus('downloading', 'Downloading...');
+
+            // Start SSE stream
+            eventSource = new EventSource('/download?url=' + encodeURIComponent(url));
+
+            eventSource.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+
+                if (data.line !== undefined) {
+                    appendLog(data.line);
+                }
+
+                if (data.status === 'installing') {
+                    setStatus('installing', `Installing ${data.package}…`);
+                    document.getElementById('downloadBtn').textContent = 'Installing…';
+                } else if (data.status === 'downloading') {
+                    setStatus('downloading', 'Downloading…');
+                    document.getElementById('downloadBtn').textContent = 'Downloading…';
+                } else if (data.status === 'done') {
+                    const n = data.files.length;
+                    setStatus('done', `${n} track${n !== 1 ? 's' : ''} ready!`);
+                    showDoneSection(data.session_id, data.files);
+                    resetBtn();
+                    eventSource.close();
+                } else if (data.status === 'error') {
+                    setStatus('error', data.message || 'An error occurred');
+                    resetBtn();
+                    eventSource.close();
+                }
+            };
+
+            eventSource.onerror = () => {
+                // Only show error if we didn't already finish
+                const badge = document.getElementById('statusBadge');
+                if (!badge.classList.contains('done')) {
+                    setStatus('error', 'Connection lost');
+                    resetBtn();
+                }
+                eventSource.close();
+            };
+        }
+
+        function appendLog(line) {
+            const log = document.getElementById('log');
+            const div = document.createElement('div');
+            div.className = 'log-line ' + classifyLine(line);
+            div.textContent = line;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function classifyLine(line) {
+            if (line.startsWith('[download]'))      return 'download';
+            if (line.startsWith('[ExtractAudio]'))  return 'extract';
+            if (line.startsWith('[ffmpeg]') || line.startsWith('[Merger]')) return 'ffmpeg';
+            if (/error/i.test(line))               return 'error';
+            if (line.startsWith('[info]') || line.startsWith('[youtube') || line.startsWith('[YoutubeDL]')) return 'info';
+            return 'default';
+        }
+
+        function setStatus(type, text) {
+            const badge = document.getElementById('statusBadge');
+            const dot = document.getElementById('dot');
+            badge.className = 'status-badge ' + type;
+            dot.className = 'dot' + (type === 'downloading' ? ' pulse' : '');
+            document.getElementById('statusText').textContent = text;
+        }
+
+        function resetBtn() {
+            const btn = document.getElementById('downloadBtn');
+            btn.disabled = false;
+            btn.textContent = 'Download';
+        }
+
+        function showDoneSection(sessionId, files) {
+            const n = files.length;
+            document.getElementById('doneTitle').textContent =
+                `${n} track${n !== 1 ? 's' : ''} ready to download`;
+
+            const zipBtn = document.getElementById('zipBtn');
+            if (n > 1) {
+                zipBtn.style.display = 'inline-block';
+                zipBtn.onclick = () => window.open(`/zip/${sessionId}`, '_blank');
+            }
+
+            const list = document.getElementById('fileList');
+            list.innerHTML = '';
+            files.forEach(filename => {
+                const item = document.createElement('div');
+                item.className = 'file-item';
+
+                const name = document.createElement('span');
+                name.className = 'file-name';
+                name.textContent = filename;
+
+                const link = document.createElement('a');
+                link.className = 'dl-link';
+                link.href = `/files/${sessionId}/${encodeURIComponent(filename)}`;
+                link.download = filename;
+                link.title = 'Download';
+                link.textContent = '⬇';
+
+                item.appendChild(name);
+                item.appendChild(link);
+                list.appendChild(item);
+            });
+
+            document.getElementById('doneSection').style.display = 'block';
+        }
+
+        document.getElementById('urlInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') startDownload();
+        });
+    </script>
+</body>
+</html>

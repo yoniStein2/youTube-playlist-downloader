@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: yt-playlist-downloader
+    runtime: docker
+    plan: free
+    healthCheckPath: /
