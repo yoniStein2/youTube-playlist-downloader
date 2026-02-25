@@ -227,6 +227,11 @@ def download():
     )
 
 
+@app.route('/cookies')
+def cookies_page():
+    return render_template('cookies.html')
+
+
 @app.route('/update-cookies', methods=['POST'])
 def update_cookies():
     global _COOKIES_FILE
