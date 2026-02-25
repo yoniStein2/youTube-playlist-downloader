@@ -42,6 +42,16 @@ POPEN_KWARGS = {'encoding': 'utf-8'}
 if IS_WINDOWS:
     POPEN_KWARGS['creationflags'] = subprocess.CREATE_NO_WINDOW
 
+# ── YouTube cookies (set YOUTUBE_COOKIES env var on the server to bypass bot detection) ──
+# Paste the full contents of a cookies.txt file into the Render environment variable.
+_COOKIES_FILE = None
+_cookies_content = os.environ.get('YOUTUBE_COOKIES', '').strip()
+if _cookies_content:
+    _tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
+    _tmp.write(_cookies_content)
+    _tmp.close()
+    _COOKIES_FILE = _tmp.name
+
 
 # ── Session management ────────────────────────────────────────────────────────
 # Each download gets a unique session ID. Files live in a temp dir until
@@ -165,15 +175,21 @@ def download():
 
         yt_dlp = find_tool('yt-dlp')
         try:
+            cmd = [
+                yt_dlp, '-x',
+                '--audio-format', 'mp3',
+                '--audio-quality', '0',
+                '--newline',
+                '--extractor-args', 'youtube:player_client=android,ios,web',
+                '--js-runtimes', 'nodejs',
+                '-o', os.path.join(tmp_dir, '%(title)s.%(ext)s'),
+            ]
+            if _COOKIES_FILE:
+                cmd += ['--cookies', _COOKIES_FILE]
+            cmd.append(url)
+
             process = subprocess.Popen(
-                [
-                    yt_dlp, '-x',
-                    '--audio-format', 'mp3',
-                    '--audio-quality', '0',
-                    '--newline',
-                    '-o', os.path.join(tmp_dir, '%(title)s.%(ext)s'),
-                    url,
-                ],
+                cmd,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **POPEN_KWARGS
             )
             for line in iter(process.stdout.readline, ''):

@@ -1,8 +1,8 @@
 FROM python:3.11-slim
 
-# Install ffmpeg (yt-dlp is installed via pip in requirements.txt)
+# Install ffmpeg and Node.js (yt-dlp uses Node as a JS runtime for YouTube)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg && \
+    apt-get install -y --no-install-recommends ffmpeg nodejs && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
