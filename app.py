@@ -184,7 +184,8 @@ def download():
                 '--audio-format', 'mp3',
                 '--audio-quality', '0',
                 '--newline',
-                '--extractor-args', 'youtube:player_client=android,ios,web;youtubetab:skip=authcheck',
+                '--extractor-args', 'youtube:player_client=android,ios,web',
+                '--extractor-args', 'youtubetab:skip=authcheck',
                 '--js-runtimes', 'node',
                 '-o', os.path.join(tmp_dir, '%(title)s.%(ext)s'),
             ]
