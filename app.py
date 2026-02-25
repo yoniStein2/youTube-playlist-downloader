@@ -227,6 +227,22 @@ def download():
     )
 
 
+@app.route('/update-cookies', methods=['POST'])
+def update_cookies():
+    global _COOKIES_FILE
+    f = request.files.get('cookies')
+    if not f:
+        return 'No file provided', 400
+    content = f.read().decode('utf-8').strip().replace('\r\n', '\n').replace('\r', '\n')
+    if not content:
+        return 'Empty file', 400
+    tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
+    tmp.write(content)
+    tmp.close()
+    _COOKIES_FILE = tmp.name
+    return 'OK', 200
+
+
 @app.route('/files/<session_id>/<path:filename>')
 def serve_file(session_id, filename):
     with sessions_lock:

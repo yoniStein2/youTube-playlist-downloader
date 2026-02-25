@@ -223,6 +223,65 @@
 
         .dl-link:hover { color: #f1f1f1; background: #2a2a2a; }
 
+        .cookies-section {
+            margin-top: 24px;
+            padding-top: 18px;
+            border-top: 1px solid #222;
+        }
+
+        .cookies-toggle {
+            background: none;
+            border: none;
+            color: #444;
+            font-size: 12px;
+            cursor: pointer;
+            padding: 0;
+            transition: color 0.2s;
+        }
+
+        .cookies-toggle:hover { color: #888; }
+
+        .cookies-body {
+            display: none;
+            margin-top: 12px;
+        }
+
+        .cookies-body p {
+            font-size: 12px;
+            color: #555;
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+
+        .cookies-body a { color: #666; }
+
+        .cookies-upload-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .cookies-file-label {
+            padding: 8px 14px;
+            background: #222;
+            border: 1px solid #333;
+            border-radius: 7px;
+            font-size: 12px;
+            color: #aaa;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .cookies-file-label:hover { background: #2a2a2a; }
+
+        .cookies-status {
+            font-size: 12px;
+            color: #555;
+        }
+
+        .cookies-status.ok    { color: #4ade80; }
+        .cookies-status.error { color: #f87171; }
+
     </style>
 </head>
 <body>
@@ -269,6 +328,23 @@
             </div>
         </div>
 
+        <div class="cookies-section">
+            <button class="cookies-toggle" onclick="toggleCookies()">&#128274; YouTube cookies</button>
+            <div class="cookies-body" id="cookiesBody">
+                <p>
+                    If downloads fail with a "bot" error, upload a fresh <code>cookies.txt</code> file from YouTube.<br>
+                    Use <strong>Firefox</strong> + the <a href="https://addons.mozilla.org/firefox/addon/cookies-txt/" target="_blank">cookies.txt extension</a>.
+                    After exporting, <strong>close the YouTube tab immediately</strong> to prevent the cookies from rotating.
+                </p>
+                <div class="cookies-upload-row">
+                    <label class="cookies-file-label">
+                        &#128196; Choose cookies.txt
+                        <input type="file" accept=".txt" style="display:none" onchange="uploadCookies(this)">
+                    </label>
+                    <span class="cookies-status" id="cookiesStatus"></span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -401,6 +477,35 @@
             });
 
             document.getElementById('doneSection').style.display = 'block';
+        }
+
+        function toggleCookies() {
+            const body = document.getElementById('cookiesBody');
+            body.style.display = body.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function uploadCookies(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const status = document.getElementById('cookiesStatus');
+            status.textContent = 'Uploading...';
+            status.className = 'cookies-status';
+            const form = new FormData();
+            form.append('cookies', file);
+            fetch('/update-cookies', { method: 'POST', body: form })
+                .then(r => {
+                    if (r.ok) {
+                        status.textContent = 'Cookies updated!';
+                        status.className = 'cookies-status ok';
+                    } else {
+                        status.textContent = 'Upload failed';
+                        status.className = 'cookies-status error';
+                    }
+                })
+                .catch(() => {
+                    status.textContent = 'Upload failed';
+                    status.className = 'cookies-status error';
+                });
         }
 
         document.getElementById('urlInput').addEventListener('keydown', (e) => {
