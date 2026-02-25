@@ -268,12 +268,26 @@ def auth_stream():
                 yield sse({'line': line})
         process.wait()
 
-        if os.path.isfile(OAUTH_TOKEN_FILE):
-            with open(OAUTH_TOKEN_FILE, 'rb') as f:
+        # Find token file — search the whole cache dir since the plugin
+        # may store it at a different subpath depending on version
+        import glob
+        token_file = None
+        for path in glob.glob(os.path.join(CACHE_DIR, '**', '*.json'), recursive=True):
+            try:
+                with open(path) as f:
+                    data = json.load(f)
+                if 'access_token' in data or 'token_type' in data or 'refresh_token' in data:
+                    token_file = path
+                    break
+            except Exception:
+                pass
+
+        if token_file:
+            with open(token_file, 'rb') as f:
                 token_b64 = base64.b64encode(f.read()).decode()
-            yield sse({'status': 'done', 'token': token_b64})
+            yield sse({'status': 'done', 'token': token_b64, 'path': token_file})
         else:
-            yield sse({'status': 'error', 'message': 'Auth failed — token file not found.'})
+            yield sse({'status': 'error', 'message': 'Auth completed but token file not found. Try again.'})
 
     return Response(
         stream_with_context(generate()),
