@@ -181,7 +181,7 @@ def download():
                 '--audio-quality', '0',
                 '--newline',
                 '--extractor-args', 'youtube:player_client=android,ios,web',
-                '--js-runtimes', 'nodejs',
+                '--js-runtimes', 'node',
                 '-o', os.path.join(tmp_dir, '%(title)s.%(ext)s'),
             ]
             if _COOKIES_FILE:
