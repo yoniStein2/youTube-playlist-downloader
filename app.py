@@ -8,6 +8,7 @@ import zipfile
 import threading
 import time
 import tempfile
+import base64
 from flask import Flask, render_template, request, Response, stream_with_context, send_file, after_this_request
 
 app = Flask(__name__)
@@ -42,8 +43,18 @@ POPEN_KWARGS = {'encoding': 'utf-8'}
 if IS_WINDOWS:
     POPEN_KWARGS['creationflags'] = subprocess.CREATE_NO_WINDOW
 
-# ── YouTube cookies (set YOUTUBE_COOKIES env var on the server to bypass bot detection) ──
-# Paste the full contents of a cookies.txt file into the Render environment variable.
+# ── OAuth2 token (preferred) ──────────────────────────────────────────────────
+# Set YT_OAUTH_TOKEN in Render env vars after completing /auth setup.
+CACHE_DIR        = '/tmp/yt-dlp-cache'
+OAUTH_TOKEN_FILE = os.path.join(CACHE_DIR, 'youtube', 'oauth2_token.json')
+
+_oauth_token_b64 = os.environ.get('YT_OAUTH_TOKEN', '').strip()
+if _oauth_token_b64:
+    os.makedirs(os.path.dirname(OAUTH_TOKEN_FILE), exist_ok=True)
+    with open(OAUTH_TOKEN_FILE, 'wb') as _f:
+        _f.write(base64.b64decode(_oauth_token_b64))
+
+# ── YouTube cookies (fallback if OAuth2 not set up) ───────────────────────────
 _COOKIES_FILE = None
 _cookies_content = os.environ.get('YOUTUBE_COOKIES', '').strip().replace('\r\n', '\n').replace('\r', '\n')
 if _cookies_content:
@@ -172,10 +183,12 @@ def download():
             sessions[session_id] = {'dir': tmp_dir, 'files': [], 'created': time.time()}
 
         yield sse({'status': 'downloading'})
-        if _COOKIES_FILE:
+        if os.path.isfile(OAUTH_TOKEN_FILE):
+            yield sse({'line': '--- YouTube OAuth2 token loaded ---'})
+        elif _COOKIES_FILE:
             yield sse({'line': '--- YouTube cookies loaded ---'})
         else:
-            yield sse({'line': 'WARNING: No YouTube cookies set. Downloads may be blocked by YouTube.'})
+            yield sse({'line': 'WARNING: No YouTube authentication set. Downloads may be blocked.'})
 
         yt_dlp = find_tool('yt-dlp')
         try:
@@ -189,7 +202,9 @@ def download():
                 '--js-runtimes', 'node',
                 '-o', os.path.join(tmp_dir, '%(title)s.%(ext)s'),
             ]
-            if _COOKIES_FILE:
+            if os.path.isfile(OAUTH_TOKEN_FILE):
+                cmd += ['--username', 'oauth2', '--password', '', '--cache-dir', CACHE_DIR]
+            elif _COOKIES_FILE:
                 cmd += ['--cookies', _COOKIES_FILE]
             proxy = os.environ.get('PROXY_URL', '').strip()
             if proxy:
@@ -225,6 +240,43 @@ def download():
 
     return Response(
         stream_with_context(generate(url)),
+        mimetype='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'}
+    )
+
+
+@app.route('/auth')
+def auth_page():
+    return render_template('auth.html')
+
+
+@app.route('/auth-stream')
+def auth_stream():
+    def generate():
+        os.makedirs(os.path.dirname(OAUTH_TOKEN_FILE), exist_ok=True)
+        yt_dlp = find_tool('yt-dlp')
+        process = subprocess.Popen(
+            [yt_dlp, '--username', 'oauth2', '--password', '',
+             '--cache-dir', CACHE_DIR,
+             '--skip-download',
+             'https://www.youtube.com/watch?v=jNQXAC9IVRw'],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **POPEN_KWARGS
+        )
+        for line in iter(process.stdout.readline, ''):
+            line = line.rstrip()
+            if line:
+                yield sse({'line': line})
+        process.wait()
+
+        if os.path.isfile(OAUTH_TOKEN_FILE):
+            with open(OAUTH_TOKEN_FILE, 'rb') as f:
+                token_b64 = base64.b64encode(f.read()).decode()
+            yield sse({'status': 'done', 'token': token_b64})
+        else:
+            yield sse({'status': 'error', 'message': 'Auth failed — token file not found.'})
+
+    return Response(
+        stream_with_context(generate()),
         mimetype='text/event-stream',
         headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'}
     )

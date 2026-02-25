@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Auth Setup</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d0d0d;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: #1a1a1a;
+            border-radius: 16px;
+            padding: 36px;
+            max-width: 580px;
+            width: 100%;
+            border: 1px solid #2a2a2a;
+        }
+        h1 { font-size: 18px; font-weight: 700; color: #f1f1f1; margin-bottom: 6px; }
+        .subtitle { font-size: 13px; color: #555; margin-bottom: 24px; line-height: 1.6; }
+        .start-btn {
+            padding: 11px 22px;
+            background: #FF0000;
+            color: white;
+            border: none;
+            border-radius: 9px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .start-btn:hover { background: #cc0000; }
+        .start-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
+        .log {
+            display: none;
+            margin-top: 20px;
+            background: #0d0d0d;
+            border: 1px solid #2a2a2a;
+            border-radius: 10px;
+            padding: 14px 16px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: 'SF Mono', 'Menlo', monospace;
+            font-size: 12px;
+            line-height: 1.65;
+            color: #aaa;
+        }
+        .log a { color: #60a5fa; }
+        .token-box {
+            display: none;
+            margin-top: 20px;
+            background: #0a2318;
+            border: 1px solid #1a4a30;
+            border-radius: 10px;
+            padding: 16px;
+        }
+        .token-box p { font-size: 13px; color: #4ade80; font-weight: 600; margin-bottom: 10px; }
+        .token-box ol { font-size: 13px; color: #888; line-height: 2; padding-left: 18px; }
+        .token-box ol strong { color: #ccc; }
+        .token-value {
+            margin-top: 12px;
+            background: #111;
+            border: 1px solid #2a2a2a;
+            border-radius: 6px;
+            padding: 10px 12px;
+            font-family: 'SF Mono', monospace;
+            font-size: 11px;
+            color: #888;
+            word-break: break-all;
+            max-height: 80px;
+            overflow-y: auto;
+        }
+        .copy-btn {
+            margin-top: 10px;
+            padding: 7px 14px;
+            background: #222;
+            border: 1px solid #333;
+            border-radius: 6px;
+            color: #aaa;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .copy-btn:hover { background: #2a2a2a; color: #fff; }
+        .back { display: inline-block; margin-top: 20px; font-size: 13px; color: #444; text-decoration: none; transition: color 0.2s; }
+        .back:hover { color: #888; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>&#128274; YouTube OAuth2 Setup</h1>
+        <p class="subtitle">One-time setup. After this, downloads work permanently without cookies.</p>
+
+        <button class="start-btn" id="startBtn" onclick="startAuth()">Start Auth</button>
+
+        <div class="log" id="log"></div>
+
+        <div class="token-box" id="tokenBox">
+            <p>&#10003; Auth complete! Save this token to Render:</p>
+            <ol>
+                <li>Go to your <strong>Render dashboard → Environment</strong></li>
+                <li>Add variable: key = <strong>YT_OAUTH_TOKEN</strong></li>
+                <li>Value = copy the token below</li>
+                <li>Save — Render will redeploy automatically</li>
+            </ol>
+            <div class="token-value" id="tokenValue"></div>
+            <button class="copy-btn" onclick="copyToken()">Copy Token</button>
+        </div>
+
+        <a href="/" class="back">&#8592; Back to app</a>
+    </div>
+
+    <script>
+        let tokenData = '';
+
+        function startAuth() {
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('startBtn').textContent = 'Waiting for approval...';
+            document.getElementById('log').style.display = 'block';
+
+            const es = new EventSource('/auth-stream');
+            es.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.line !== undefined) {
+                    appendLog(data.line);
+                }
+                if (data.status === 'done') {
+                    tokenData = data.token;
+                    document.getElementById('tokenValue').textContent = data.token;
+                    document.getElementById('tokenBox').style.display = 'block';
+                    document.getElementById('startBtn').textContent = 'Done!';
+                    es.close();
+                } else if (data.status === 'error') {
+                    appendLog('ERROR: ' + data.message);
+                    document.getElementById('startBtn').disabled = false;
+                    document.getElementById('startBtn').textContent = 'Retry';
+                    es.close();
+                }
+            };
+        }
+
+        function appendLog(line) {
+            const log = document.getElementById('log');
+            const div = document.createElement('div');
+            // Make URLs clickable
+            const urlRegex = /(https?:\/\/[^\s]+)/g;
+            div.innerHTML = line.replace(urlRegex, '<a href="$1" target="_blank">$1</a>');
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function copyToken() {
+            navigator.clipboard.writeText(tokenData).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy Token', 2000);
+            });
+        }
+    </script>
+</body>
+</html>
