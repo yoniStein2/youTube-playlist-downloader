@@ -45,7 +45,7 @@ if IS_WINDOWS:
 # ── YouTube cookies (set YOUTUBE_COOKIES env var on the server to bypass bot detection) ──
 # Paste the full contents of a cookies.txt file into the Render environment variable.
 _COOKIES_FILE = None
-_cookies_content = os.environ.get('YOUTUBE_COOKIES', '').strip()
+_cookies_content = os.environ.get('YOUTUBE_COOKIES', '').strip().replace('\r\n', '\n').replace('\r', '\n')
 if _cookies_content:
     _tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
     _tmp.write(_cookies_content)
@@ -172,6 +172,10 @@ def download():
             sessions[session_id] = {'dir': tmp_dir, 'files': [], 'created': time.time()}
 
         yield sse({'status': 'downloading'})
+        if _COOKIES_FILE:
+            yield sse({'line': '--- YouTube cookies loaded ---'})
+        else:
+            yield sse({'line': 'WARNING: No YouTube cookies set. Downloads may be blocked by YouTube.'})
 
         yt_dlp = find_tool('yt-dlp')
         try:
