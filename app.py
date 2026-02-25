@@ -191,6 +191,9 @@ def download():
             ]
             if _COOKIES_FILE:
                 cmd += ['--cookies', _COOKIES_FILE]
+            proxy = os.environ.get('PROXY_URL', '').strip()
+            if proxy:
+                cmd += ['--proxy', proxy]
             cmd.append(url)
 
             process = subprocess.Popen(
