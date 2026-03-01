@@ -60,6 +60,18 @@ echo "Starting... your browser will open automatically."
 echo "(Leave this window open while using the app. Close it to quit.)"
 echo ""
 
-sleep 1
-open "http://localhost:5001"
-python3 app.py
+# Start Flask in the background
+python3 app.py &
+FLASK_PID=$!
+
+# Wait until Flask is ready (up to 15 seconds), then open the browser
+for i in {1..15}; do
+    sleep 1
+    if curl -s http://localhost:5001 > /dev/null 2>&1; then
+        open "http://localhost:5001"
+        break
+    fi
+done
+
+# Keep terminal open while Flask runs
+wait $FLASK_PID
