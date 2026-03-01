@@ -8,8 +8,7 @@ import zipfile
 import threading
 import time
 import tempfile
-import base64
-from flask import Flask, render_template, request, Response, stream_with_context, send_file, after_this_request
+from flask import Flask, render_template, request, Response, stream_with_context, send_file
 
 app = Flask(__name__)
 
@@ -42,26 +41,6 @@ ENV['PATH'] = PATH_SEP.join(TOOL_DIRS) + PATH_SEP + ENV.get('PATH', '')
 POPEN_KWARGS = {'encoding': 'utf-8'}
 if IS_WINDOWS:
     POPEN_KWARGS['creationflags'] = subprocess.CREATE_NO_WINDOW
-
-# ── OAuth2 token (preferred) ──────────────────────────────────────────────────
-# Set YT_OAUTH_TOKEN in Render env vars after completing /auth setup.
-CACHE_DIR        = '/tmp/yt-dlp-cache'
-OAUTH_TOKEN_FILE = os.path.join(CACHE_DIR, 'youtube', 'oauth2_token.json')
-
-_oauth_token_b64 = os.environ.get('YT_OAUTH_TOKEN', '').strip()
-if _oauth_token_b64:
-    os.makedirs(os.path.dirname(OAUTH_TOKEN_FILE), exist_ok=True)
-    with open(OAUTH_TOKEN_FILE, 'wb') as _f:
-        _f.write(base64.b64decode(_oauth_token_b64))
-
-# ── YouTube cookies (fallback if OAuth2 not set up) ───────────────────────────
-_COOKIES_FILE = None
-_cookies_content = os.environ.get('YOUTUBE_COOKIES', '').strip().replace('\r\n', '\n').replace('\r', '\n')
-if _cookies_content:
-    _tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
-    _tmp.write(_cookies_content)
-    _tmp.close()
-    _COOKIES_FILE = _tmp.name
 
 
 # ── Session management ────────────────────────────────────────────────────────
@@ -117,16 +96,10 @@ def download():
             yield sse({'status': 'error', 'message': 'Please enter a URL.'})
             return
 
-        # ── Auto-install missing dependencies (local Mac/Windows only) ─────────
+        # ── Auto-install missing dependencies ──────────────────────────────
         for package in ['yt-dlp', 'ffmpeg']:
             if find_tool(package):
                 continue
-
-            if IS_LINUX:
-                yield sse({'status': 'error',
-                           'message': f'{package} is not installed on the server. '
-                                      'Contact the server admin.'})
-                return
 
             yield sse({'status': 'installing', 'package': package})
 
@@ -153,7 +126,7 @@ def download():
                                'message': f'Failed to install {package}.'})
                     return
 
-            else:  # macOS
+            else:  # macOS / Linux
                 brew = find_tool('brew') or shutil.which('brew')
                 if not brew:
                     yield sse({'status': 'error',
@@ -176,19 +149,13 @@ def download():
 
             yield sse({'line': f'--- {package} installed successfully ---'})
 
-        # ── Download ──────────────────────────────────────────────────────────
+        # ── Download ──────────────────────────────────────────────────────
         session_id = str(uuid.uuid4())
         tmp_dir = tempfile.mkdtemp(prefix='ytdl-')
         with sessions_lock:
             sessions[session_id] = {'dir': tmp_dir, 'files': [], 'created': time.time()}
 
         yield sse({'status': 'downloading'})
-        if os.path.isfile(OAUTH_TOKEN_FILE):
-            yield sse({'line': '--- YouTube OAuth2 token loaded ---'})
-        elif _COOKIES_FILE:
-            yield sse({'line': '--- YouTube cookies loaded ---'})
-        else:
-            yield sse({'line': 'WARNING: No YouTube authentication set. Downloads may be blocked.'})
 
         yt_dlp = find_tool('yt-dlp')
         try:
@@ -201,15 +168,8 @@ def download():
                 '--extractor-args', 'youtubetab:skip=authcheck',
                 '--js-runtimes', 'node',
                 '-o', os.path.join(tmp_dir, '%(title)s.%(ext)s'),
+                url,
             ]
-            if os.path.isfile(OAUTH_TOKEN_FILE):
-                cmd += ['--username', 'oauth2', '--password', '', '--cache-dir', CACHE_DIR]
-            elif _COOKIES_FILE:
-                cmd += ['--cookies', _COOKIES_FILE]
-            proxy = os.environ.get('PROXY_URL', '').strip()
-            if proxy:
-                cmd += ['--proxy', proxy]
-            cmd.append(url)
 
             process = subprocess.Popen(
                 cmd,
@@ -245,78 +205,6 @@ def download():
     )
 
 
-@app.route('/auth')
-def auth_page():
-    return render_template('auth.html')
-
-
-@app.route('/auth-stream')
-def auth_stream():
-    def generate():
-        os.makedirs(os.path.dirname(OAUTH_TOKEN_FILE), exist_ok=True)
-        yt_dlp = find_tool('yt-dlp')
-        process = subprocess.Popen(
-            [yt_dlp, '--username', 'oauth2', '--password', '',
-             '--cache-dir', CACHE_DIR,
-             '--skip-download',
-             'https://www.youtube.com/watch?v=jNQXAC9IVRw'],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, **POPEN_KWARGS
-        )
-        for line in iter(process.stdout.readline, ''):
-            line = line.rstrip()
-            if line:
-                yield sse({'line': line})
-        process.wait()
-
-        # Find token file — search the whole cache dir since the plugin
-        # may store it at a different subpath depending on version
-        import glob
-        token_file = None
-        for path in glob.glob(os.path.join(CACHE_DIR, '**', '*.json'), recursive=True):
-            try:
-                with open(path) as f:
-                    data = json.load(f)
-                if 'access_token' in data or 'token_type' in data or 'refresh_token' in data:
-                    token_file = path
-                    break
-            except Exception:
-                pass
-
-        if token_file:
-            with open(token_file, 'rb') as f:
-                token_b64 = base64.b64encode(f.read()).decode()
-            yield sse({'status': 'done', 'token': token_b64, 'path': token_file})
-        else:
-            yield sse({'status': 'error', 'message': 'Auth completed but token file not found. Try again.'})
-
-    return Response(
-        stream_with_context(generate()),
-        mimetype='text/event-stream',
-        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'}
-    )
-
-
-@app.route('/cookies')
-def cookies_page():
-    return render_template('cookies.html')
-
-
-@app.route('/update-cookies', methods=['POST'])
-def update_cookies():
-    global _COOKIES_FILE
-    f = request.files.get('cookies')
-    if not f:
-        return 'No file provided', 400
-    content = f.read().decode('utf-8').strip().replace('\r\n', '\n').replace('\r', '\n')
-    if not content:
-        return 'Empty file', 400
-    tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
-    tmp.write(content)
-    tmp.close()
-    _COOKIES_FILE = tmp.name
-    return 'OK', 200
-
-
 @app.route('/files/<session_id>/<path:filename>')
 def serve_file(session_id, filename):
     with sessions_lock:
@@ -342,7 +230,6 @@ def serve_zip(session_id):
     if not session:
         return 'Session expired — please download the playlist again.', 404
 
-    # Build (or reuse) the ZIP inside the session's temp dir
     zip_path = os.path.join(session['dir'], '_playlist.zip')
     if not os.path.isfile(zip_path):
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
