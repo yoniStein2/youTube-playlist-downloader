@@ -127,7 +127,7 @@
 
     <div class="divider">wrong platform?</div>
     <div class="other-links">
-      <a class="btn btn-secondary" href="https://github.com/yoniStein2/youTube-playlist-downloader/releases/latest/download/YT-Downloader.command">Mac (.command)</a>
+      <a class="btn btn-secondary" href="https://github.com/yoniStein2/youTube-playlist-downloader/releases/latest/download/YT-Downloader-Mac.zip">Mac (.zip)</a>
       <a class="btn btn-secondary" href="https://github.com/yoniStein2/youTube-playlist-downloader/releases/latest/download/YT-Downloader.bat">Windows (.bat)</a>
     </div>
 
@@ -135,7 +135,7 @@
   </div>
 
   <script>
-    const MAC_URL = 'https://github.com/yoniStein2/youTube-playlist-downloader/releases/latest/download/YT-Downloader.command';
+    const MAC_URL = 'https://github.com/yoniStein2/youTube-playlist-downloader/releases/latest/download/YT-Downloader-Mac.zip';
     const WIN_URL = 'https://github.com/yoniStein2/youTube-playlist-downloader/releases/latest/download/YT-Downloader.bat';
 
     const isWindows = navigator.userAgent.includes('Windows');
@@ -164,9 +164,10 @@
       instructions.innerHTML = `
         <b>How to run:</b><br>
         1. Open your <b>Downloads</b> folder<br>
-        2. Double-click <b>YT-Downloader.command</b><br>
-        3. If Mac blocks it — go to <b>System Settings → Privacy → Open Anyway</b><br>
-        4. Your browser will open automatically
+        2. Double-click <b>YT-Downloader-Mac.zip</b> to extract it<br>
+        3. Double-click <b>YT-Downloader.command</b><br>
+        4. If Mac blocks it — go to <b>System Settings → Privacy → Open Anyway</b><br>
+        5. Your browser will open automatically
       `;
     } else {
       osName.textContent = 'Unknown OS';
