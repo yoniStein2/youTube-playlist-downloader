@@ -52,7 +52,7 @@ cd "$APP_DIR"
 
 # ── Python packages ────────────────────────────────────────────────────────────
 echo "Checking Python packages..."
-pip3 install flask yt-dlp --quiet --disable-pip-version-check
+python3 -m pip install flask yt-dlp --quiet --disable-pip-version-check
 
 # ── Launch ─────────────────────────────────────────────────────────────────────
 echo ""
